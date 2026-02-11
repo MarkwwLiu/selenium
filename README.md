@@ -319,3 +319,73 @@ class TestLogin:
 ```
 
 所有新增的 `test_*.py` 都會被 pytest 自動發現並執行。
+
+---
+
+## 參數化測試（正向 / 反向 / 邊界）
+
+使用 `@pytest.mark.parametrize` 一組測試邏輯跑多組資料：
+
+```python
+# 定義測試資料
+POSITIVE_CASES = [
+    pytest.param('user@mail.com', 'Pass1234', True, id='正向-合法帳密'),
+    pytest.param('admin@mail.com', 'Admin123', True, id='正向-管理員帳密'),
+]
+
+NEGATIVE_CASES = [
+    pytest.param('', 'Pass1234', False, id='反向-空帳號'),
+    pytest.param('user@mail.com', '', False, id='反向-空密碼'),
+]
+
+BOUNDARY_CASES = [
+    pytest.param('a' * 256, 'Pass1234', False, id='邊界-帳號256字元'),
+    pytest.param('u@m.co', 'a', False, id='邊界-密碼1字元'),
+]
+
+class TestLoginForm:
+    @pytest.mark.positive
+    @pytest.mark.parametrize('email, password, should_pass', POSITIVE_CASES)
+    def test_login_positive(self, login_page, email, password, should_pass):
+        ...
+
+    @pytest.mark.negative
+    @pytest.mark.parametrize('email, password, should_pass', NEGATIVE_CASES)
+    def test_login_negative(self, login_page, email, password, should_pass):
+        ...
+
+    @pytest.mark.boundary
+    @pytest.mark.parametrize('email, password, should_pass', BOUNDARY_CASES)
+    def test_login_boundary(self, login_page, email, password, should_pass):
+        ...
+```
+
+執行篩選：
+
+```sh
+pytest -m positive         # 只跑正向測試
+pytest -m negative         # 只跑反向測試
+pytest -m boundary         # 只跑邊界測試
+pytest -m "not negative"   # 跳過反向測試
+```
+
+完整範例請參考 `tests/test_example_parametrize.py`。
+
+---
+
+## BasePage 可用方法一覽
+
+| 分類 | 方法 | 說明 |
+|------|------|------|
+| **導航** | `open(url)`, `refresh()`, `go_back()`, `get_title()`, `get_current_url()` | 頁面導航操作 |
+| **查找** | `find_element()`, `find_elements()`, `is_element_present()` | 元素定位 |
+| **等待** | `wait_for_element()`, `wait_for_visible()`, `wait_for_clickable()`, `wait_for_invisible()`, `wait_for_text_present()`, `wait_for_url_contains()` | 各種等待策略 |
+| **互動** | `click()`, `input_text()`, `clear_and_type()`, `get_element_text()`, `get_element_attribute()`, `get_input_value()` | 元素操作 |
+| **下拉** | `select_by_value()`, `select_by_text()`, `select_by_index()` | `<select>` 選單 |
+| **勾選** | `is_selected()`, `set_checkbox()` | Checkbox / Radio |
+| **滾動** | `scroll_to_element()`, `scroll_to_bottom()`, `scroll_to_top()` | 頁面滾動 |
+| **框架** | `switch_to_iframe()`, `switch_to_default()`, `switch_to_window()` | iframe / 多視窗 |
+| **彈窗** | `accept_alert()`, `dismiss_alert()`, `get_alert_text()` | Alert 處理 |
+| **滑鼠** | `hover()`, `double_click()`, `right_click()` | 滑鼠進階操作 |
+| **JS** | `execute_js()`, `js_click()` | JavaScript 執行 |
+| **狀態** | `is_enabled()`, `is_displayed()`, `get_elements_text()`, `get_element_count()` | 元素狀態檢查 |
