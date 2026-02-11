@@ -1,2 +1,26 @@
+# macOS
 .DS_Store
-Demo_BeautifulReport.html
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+*.egg
+.venv/
+venv/
+env/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# 測試報告
+reports/*.html
+reports/*.json
+
+# 環境設定
+.env
