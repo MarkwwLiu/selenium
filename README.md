@@ -1,15 +1,7 @@
-# Selenium 自動化測試專案
+# Selenium 自動化測試框架
 
-使用 **Selenium + pytest** 搭配 **Page Object Model (POM)** 設計模式的自動化測試專案。
-
-**功能特色：**
-- Page Object Model 設計模式，頁面操作與測試邏輯分離
-- **pytest** 測試框架，支援 fixture、marker、參數化等進階功能
-- WebDriver Factory 支援 Chrome / Firefox / Edge + Headless 模式
-- 測試失敗自動截圖，方便除錯追蹤
-- 結構化日誌系統，同時輸出到終端機與檔案
-- **pytest-html** 產生互動式 HTML 測試報告
-- `run.py` 統一執行入口，支援命令列參數
+使用 **Selenium + pytest + Page Object Model** 的自動化測試框架。
+提供「基地核心」+「獨立情境模組」的雙層架構，核心不動、每個測試任務自動產生獨立模組。
 
 ---
 
@@ -17,375 +9,287 @@
 
 ```
 selenium/
-├── config/                        # 設定檔
-│   ├── __init__.py
-│   └── settings.py                # 集中管理所有可配置參數
-├── pages/                         # Page Object Model（頁面物件）
-│   ├── __init__.py
-│   ├── base_page.py               # 基礎頁面：共用的瀏覽器操作方法
-│   └── home_page.py               # 首頁頁面：封裝首頁的元素定位與操作
-├── tests/                         # 測試案例
-│   ├── __init__.py
-│   └── test_home_page.py          # 首頁測試
-├── utils/                         # 工具模組
-│   ├── __init__.py
-│   ├── driver_factory.py          # WebDriver 工廠：多瀏覽器 + Headless
-│   ├── screenshot.py              # 截圖工具：失敗時自動擷取畫面
-│   └── logger.py                  # 日誌工具：結構化日誌紀錄
-├── reports/                       # 測試報告輸出目錄
-├── screenshots/                   # 失敗截圖輸出目錄
-├── logs/                          # 日誌檔案目錄
-├── conftest.py                    # pytest 共用 fixtures（driver, logger, 截圖）
-├── pytest.ini                     # pytest 設定檔
-├── run.py                         # 統一測試執行入口
-├── requirements.txt               # Python 依賴套件
-├── .gitignore
-└── README.md
+│
+├── 🔧 核心框架（基地，不動）
+│   ├── pages/
+│   │   ├── base_page.py              # 基礎頁面：30+ 共用操作方法 + 自動快照
+│   │   └── home_page.py              # 範例 Page Object
+│   ├── utils/
+│   │   ├── driver_factory.py         # WebDriver 工廠（Chrome/Firefox/Edge）
+│   │   ├── screenshot.py             # 截圖工具
+│   │   ├── logger.py                 # 日誌工具
+│   │   ├── retry.py                  # 重試裝飾器（處理不穩定元素）
+│   │   ├── data_loader.py            # 測試資料載入器（JSON/CSV → @parametrize）
+│   │   ├── waiter.py                 # 進階等待工具（AJAX/元素穩定/屬性變化）
+│   │   ├── page_analyzer.py          # 頁面元素分析器（自動掃描 + locator 產生）
+│   │   ├── page_snapshot.py          # 頁面快照（截圖+HTML+狀態+時間軸）
+│   │   └── test_generator.py         # 測試案例自動產生器
+│   ├── config/
+│   │   └── settings.py               # 全域設定（瀏覽器/等待/截圖/日誌）
+│   ├── conftest.py                   # 根層級 pytest fixtures
+│   ├── pytest.ini                    # pytest 設定 + markers
+│   └── generate_scenario.py          # 情境模組產生器
+│
+├── tests/                             # 根層級測試（核心功能驗證用）
+│
+└── scenarios/                         # 獨立情境模組（每個任務一個）
+    ├── _template/                     # 模板（產生器複製用）
+    │   ├── conftest.py                # 完整 fixture 配置
+    │   ├── pytest.ini                 # 獨立 pytest 設定
+    │   ├── pages/                     # 情境專屬 Page Object
+    │   ├── tests/                     # 情境專屬測試
+    │   ├── test_data/                 # JSON/CSV 測試資料
+    │   └── results/                   # 截圖/日誌/快照/報告
+    └── demo_search/                   # 範例情境
+        ├── conftest.py
+        ├── pages/search_page.py
+        ├── tests/test_search.py
+        ├── test_data/search.json
+        └── results/
 ```
 
 ---
 
-## 架構設計說明
+## 工作流程
 
-### Page Object Model (POM)
-
-將「頁面操作」與「測試邏輯」分離，提升維護性：
-
-| 層級 | 檔案 | 職責 |
-|------|------|------|
-| **Config** | `config/settings.py` | 集中管理所有可配置參數 |
-| **Utils** | `utils/driver_factory.py` | 根據設定建立對應瀏覽器的 WebDriver |
-| **Utils** | `utils/screenshot.py` | 測試失敗時自動截圖 |
-| **Utils** | `utils/logger.py` | 日誌紀錄（終端機 + 檔案） |
-| **Base Page** | `pages/base_page.py` | 封裝共用的瀏覽器操作 |
-| **Page Object** | `pages/home_page.py` | 定義頁面元素定位器與操作方法 |
-| **Fixtures** | `conftest.py` | WebDriver 初始化 / 關閉 / 截圖 / 日誌 |
-| **Test Case** | `tests/test_home_page.py` | 撰寫測試斷言，只關注「要驗證什麼」 |
-
-### pytest Fixtures 架構
+### 給 URL → 自動產生完整測試
 
 ```
-conftest.py
-├── pytest_addoption()          # 註冊 --browser, --headless-mode 參數
-├── logger (session scope)      # 整個 session 共用一個 Logger
-├── driver (session scope)      # 整個 session 共用一個 WebDriver
-├── pytest_runtest_makereport() # Hook：將測試結果附加到 item
-└── test_lifecycle (autouse)    # 自動套用：紀錄開始/結束、失敗截圖
+┌─────────────────────────────────────────────────────┐
+│  1. 輸入 URL                                         │
+│     https://example.com/login                        │
+└──────────────┬──────────────────────────────────────┘
+               ▼
+┌─────────────────────────────────────────────────────┐
+│  2. PageAnalyzer 自動掃描頁面                         │
+│     ├─ JS 注入掃描所有互動元素                         │
+│     ├─ input / button / select / checkbox / radio    │
+│     ├─ link / table / textarea / iframe              │
+│     ├─ 自動產生最佳 locator                           │
+│     │   (id > name > data-testid > css > xpath)      │
+│     └─ 提取驗證限制                                   │
+│        (required / maxlength / pattern / min / max)  │
+└──────────────┬──────────────────────────────────────┘
+               ▼
+┌─────────────────────────────────────────────────────┐
+│  3. TestGenerator 自動推測測試資料                     │
+│     ├─ email  → 正向: user@example.com               │
+│     │           反向: 空值, @no-local                 │
+│     │           邊界: 256 字元                        │
+│     ├─ password → 正向: P@ssw0rd123                  │
+│     │             反向: 空值                          │
+│     │             邊界: 1 字元, 128 字元              │
+│     └─ number → 正向: 42                             │
+│                 反向: abc                             │
+│                 邊界: min-1, max+1                    │
+└──────────────┬──────────────────────────────────────┘
+               ▼
+┌─────────────────────────────────────────────────────┐
+│  4. 自動產生檔案到 scenarios/xxx/                      │
+│     ├─ pages/xxx_page.py     ← Page Object 骨架      │
+│     ├─ tests/test_xxx.py     ← pytest 測試檔案       │
+│     ├─ test_data/data.json   ← 正向/反向/邊界資料     │
+│     └─ results/              ← 輸出目錄              │
+└──────────────┬──────────────────────────────────────┘
+               ▼
+┌─────────────────────────────────────────────────────┐
+│  5. 執行測試，每步自動快照                             │
+│     ├─ open   → 001_open_screenshot.png              │
+│     ├─ input  → 002_input_email_screenshot.png       │
+│     ├─ click  → 003_click_submit_screenshot.png      │
+│     ├─ 每步同時存 HTML + 表單狀態 JSON                │
+│     └─ 產出 timeline.json（完整操作時間軸）            │
+└─────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 環境需求
+## 快速開始
 
-- Python 3.8+
-- 瀏覽器（至少安裝一種）：Google Chrome / Firefox / Microsoft Edge
-
----
-
-## 安裝步驟
-
-### 1. 建立虛擬環境（建議）
+### 安裝
 
 ```sh
 python3 -m venv venv
-source venv/bin/activate   # macOS / Linux
-# venv\Scripts\activate    # Windows
-```
-
-### 2. 安裝依賴套件
-
-```sh
+source venv/bin/activate
 pip3 install -r requirements.txt
 ```
 
-安裝的套件：
-- `selenium` - 瀏覽器自動化框架
-- `webdriver-manager` - 自動下載對應版本的瀏覽器驅動
-- `pytest` - Python 測試框架
-- `pytest-html` - 產生 HTML 格式的測試報告
-
----
-
-## 執行測試
-
-### 方式一：使用 `run.py`（推薦）
+### 執行根層級測試
 
 ```sh
-# 預設執行（Chrome，有畫面，終端機輸出）
-python3 run.py
-
-# 指定瀏覽器
-python3 run.py --browser firefox
-python3 run.py --browser edge
-
-# 無頭模式（不顯示瀏覽器視窗，適用於 CI/CD）
-python3 run.py --headless
-
-# 產生 HTML 報告
-python3 run.py --html
-
-# 只跑 smoke 標籤的測試
-python3 run.py -m smoke
-
-# 只跑名稱含特定關鍵字的測試
-python3 run.py -k "keyword"
-
-# 組合使用
-python3 run.py --browser firefox --headless --html
+pytest                                    # 全部
+pytest -m smoke                           # 冒煙測試
+pytest --browser firefox --headless-mode  # Firefox 無頭模式
+python3 run.py --html                     # HTML 報告
 ```
 
-### 方式二：直接使用 pytest
+### 建立新情境模組
 
 ```sh
-# 執行所有測試
-pytest
+python generate_scenario.py login_test --url https://example.com/login
+```
 
-# 執行特定檔案
-pytest tests/test_home_page.py
+產生結果：
+```
+scenarios/login_test/
+├── conftest.py       ← driver/logger/snapshot/analyzer fixture
+├── pytest.ini
+├── pages/
+├── tests/
+├── test_data/
+└── results/
+```
 
-# 執行特定測試
-pytest tests/test_home_page.py::TestHomePage::test_entry_title_is_correct
+### 執行情境測試
 
-# 產生 HTML 報告
-pytest --html=reports/report.html --self-contained-html
+```sh
+pytest scenarios/login_test/tests/ -v            # 全部
+pytest scenarios/login_test/tests/ -m positive    # 只跑正向
+pytest scenarios/login_test/tests/ -m negative    # 只跑反向
+pytest scenarios/login_test/tests/ -m boundary    # 只跑邊界
 
-# 依標籤篩選
-pytest -m smoke
-pytest -m regression
-
-# 依名稱篩選
-pytest -k "title"
-
-# 指定瀏覽器 + 無頭模式
-pytest --browser firefox --headless-mode
+# 產出 HTML 報告到情境目錄
+pytest scenarios/login_test/tests/ --html=scenarios/login_test/results/report.html
 ```
 
 ---
 
-## 設定說明
+## 核心工具一覽
 
-所有可配置的參數集中在 `config/settings.py`：
+### BasePage 方法（pages/base_page.py）
 
-```python
-# === 瀏覽器設定 ===
-BROWSER = 'chrome'           # 支援: 'chrome', 'firefox', 'edge'
-HEADLESS = False              # True = 無頭模式（適用於 CI/CD）
-IMPLICIT_WAIT = 10            # 隱式等待秒數
+| 分類 | 方法 |
+|------|------|
+| **導航** | `open()` `refresh()` `go_back()` `get_title()` `get_current_url()` |
+| **查找** | `find_element()` `find_elements()` `is_element_present()` |
+| **等待** | `wait_for_element()` `wait_for_visible()` `wait_for_clickable()` `wait_for_invisible()` `wait_for_text_present()` `wait_for_url_contains()` |
+| **互動** | `click()` `input_text()` `clear_and_type()` `get_element_text()` `get_element_attribute()` `get_input_value()` |
+| **下拉** | `select_by_value()` `select_by_text()` `select_by_index()` |
+| **勾選** | `is_selected()` `set_checkbox()` |
+| **滾動** | `scroll_to_element()` `scroll_to_bottom()` `scroll_to_top()` |
+| **框架** | `switch_to_iframe()` `switch_to_default()` `switch_to_window()` |
+| **彈窗** | `accept_alert()` `dismiss_alert()` `get_alert_text()` |
+| **滑鼠** | `hover()` `double_click()` `right_click()` |
+| **JS** | `execute_js()` `js_click()` |
+| **狀態** | `is_enabled()` `is_displayed()` `get_elements_text()` `get_element_count()` |
+| **快照** | `enable_snapshot()` — open/click/input/select 自動觸發快照 |
 
-# === 測試目標 ===
-BASE_URL = 'https://shareboxnow.com/'
+### 工具模組（utils/）
 
-# === 截圖設定 ===
-SCREENSHOT_ON_FAILURE = True  # 測試失敗時是否自動截圖
+| 工具 | 用途 | 使用方式 |
+|------|------|----------|
+| **page_analyzer.py** | 掃描頁面所有互動元素，產生結構化報告 | `analyzer.analyze(url)` → JSON |
+| **page_snapshot.py** | 每步存截圖+HTML+狀態，支援差異比對 | `snapshot.take('label')` / `snapshot.diff(0, 1)` |
+| **test_generator.py** | 根據元素限制自動產生測試值+程式碼 | `generate_test_data()` / `generate_page_object()` |
+| **data_loader.py** | JSON/CSV → pytest.param 列表 | `load_test_data('data.json', ['email', 'pass'])` |
+| **retry.py** | 重試裝飾器，處理不穩定元素 | `@retry(max_attempts=3)` / `@retry_on_stale` |
+| **waiter.py** | 進階等待（AJAX/元素穩定/屬性變化） | `waiter.wait_for_ajax()` / `waiter.wait_for_stable()` |
 
-# === 日誌設定 ===
-LOG_ENABLED = True            # 是否啟用日誌紀錄到檔案
-```
+### Markers
 
----
-
-## 功能說明
-
-### 多瀏覽器支援
-
-透過 `utils/driver_factory.py` 的 **WebDriver Factory** 模式，一行設定切換瀏覽器：
-
-```python
-# config/settings.py
-BROWSER = 'firefox'  # 切換為 Firefox
-```
-
-或在命令列直接指定：
-
-```sh
-python3 run.py --browser edge
-# 或
-pytest --browser edge
-```
-
-### 測試標籤（Markers）
-
-使用 `@pytest.mark` 為測試分類：
-
-```python
-@pytest.mark.smoke
-def test_critical_feature(self, home_page):
-    ...
-
-@pytest.mark.regression
-def test_edge_case(self, home_page):
-    ...
-```
-
-執行時篩選：
-
-```sh
-pytest -m smoke            # 只跑冒煙測試
-pytest -m "not regression" # 跳過迴歸測試
-```
-
-### 失敗自動截圖
-
-測試失敗時，系統會自動擷取瀏覽器當前畫面，儲存到 `screenshots/` 目錄：
-
-```
-screenshots/
-├── test_entry_title_is_correct_20240101_143022.png
-└── test_entry_title_contains_keyword_20240101_143025.png
-```
-
-### 日誌系統
-
-日誌同時輸出到終端機和 `logs/` 目錄的檔案中：
-
-```
-2024-01-01 14:30:20 [INFO] selenium_test - ===== 啟動測試 Session =====
-2024-01-01 14:30:20 [INFO] selenium_test - 瀏覽器: chrome | Headless: False
-2024-01-01 14:30:22 [INFO] selenium_test - WebDriver 初始化完成
-2024-01-01 14:30:22 [INFO] selenium_test - ▶ 執行: test_entry_title_is_correct
-2024-01-01 14:30:25 [INFO] selenium_test - ✔ 通過: test_entry_title_is_correct
-```
-
-### Headless 模式
-
-無頭模式不會開啟瀏覽器視窗，適合在 CI/CD 環境中使用：
-
-```sh
-python3 run.py --headless
-# 或
-pytest --headless-mode
-```
-
-### HTML 報告
-
-使用 `pytest-html` 產生互動式報告：
-
-```sh
-python3 run.py --html
-# 或
-pytest --html=reports/report.html --self-contained-html
-```
+| Marker | 用途 | 執行 |
+|--------|------|------|
+| `@pytest.mark.smoke` | 冒煙測試 | `pytest -m smoke` |
+| `@pytest.mark.regression` | 迴歸測試 | `pytest -m regression` |
+| `@pytest.mark.positive` | 正向測試 | `pytest -m positive` |
+| `@pytest.mark.negative` | 反向測試 | `pytest -m negative` |
+| `@pytest.mark.boundary` | 邊界測試 | `pytest -m boundary` |
 
 ---
 
-## 如何新增測試
+## 情境模組 Fixture 一覽
 
-### 1. 新增頁面物件
+每個情境的 `conftest.py` 自動提供：
 
-在 `pages/` 目錄下建立新的 Page Object，繼承 `BasePage`：
-
-```python
-# pages/login_page.py
-from selenium.webdriver.common.by import By
-from pages.base_page import BasePage
-
-class LoginPage(BasePage):
-    USERNAME_INPUT = (By.ID, 'username')
-    PASSWORD_INPUT = (By.ID, 'password')
-    LOGIN_BUTTON = (By.CSS_SELECTOR, '.btn-login')
-
-    def enter_username(self, username):
-        self.find_element(*self.USERNAME_INPUT).send_keys(username)
-
-    def enter_password(self, password):
-        self.find_element(*self.PASSWORD_INPUT).send_keys(password)
-
-    def click_login(self):
-        self.find_element(*self.LOGIN_BUTTON).click()
-```
-
-### 2. 新增測試案例
-
-在 `tests/` 目錄下建立測試檔案，使用 pytest fixture：
-
-```python
-# tests/test_login.py
-import pytest
-from pages.login_page import LoginPage
-
-@pytest.fixture
-def login_page(driver):
-    page = LoginPage(driver)
-    driver.get('https://example.com/login')
-    return page
-
-class TestLogin:
-    @pytest.mark.smoke
-    def test_login_success(self, login_page):
-        login_page.enter_username('user@example.com')
-        login_page.enter_password('password123')
-        login_page.click_login()
-        assert 'dashboard' in login_page.driver.current_url
-```
-
-所有新增的 `test_*.py` 都會被 pytest 自動發現並執行。
+| Fixture | Scope | 說明 |
+|---------|-------|------|
+| `driver` | session | WebDriver 實例 |
+| `logger` | session | 日誌寫入情境 `results/` |
+| `waiter` | session | 進階等待工具 |
+| `analyzer` | session | 頁面元素分析器 |
+| `snapshot` | function | 快照管理器，存到 `results/snapshots/` |
+| `scenario_url` | function | 情境目標 URL |
+| `test_lifecycle` | autouse | 自動紀錄 + 失敗截圖 |
 
 ---
 
 ## 參數化測試（正向 / 反向 / 邊界）
 
-使用 `@pytest.mark.parametrize` 一組測試邏輯跑多組資料：
+### 方式一：直接寫在程式碼
 
 ```python
-# 定義測試資料
 POSITIVE_CASES = [
     pytest.param('user@mail.com', 'Pass1234', True, id='正向-合法帳密'),
-    pytest.param('admin@mail.com', 'Admin123', True, id='正向-管理員帳密'),
 ]
-
 NEGATIVE_CASES = [
     pytest.param('', 'Pass1234', False, id='反向-空帳號'),
-    pytest.param('user@mail.com', '', False, id='反向-空密碼'),
 ]
-
 BOUNDARY_CASES = [
     pytest.param('a' * 256, 'Pass1234', False, id='邊界-帳號256字元'),
-    pytest.param('u@m.co', 'a', False, id='邊界-密碼1字元'),
 ]
 
-class TestLoginForm:
+class TestLogin:
     @pytest.mark.positive
-    @pytest.mark.parametrize('email, password, should_pass', POSITIVE_CASES)
-    def test_login_positive(self, login_page, email, password, should_pass):
-        ...
+    @pytest.mark.parametrize('email, password, expected', POSITIVE_CASES)
+    def test_positive(self, page, email, password, expected): ...
 
     @pytest.mark.negative
-    @pytest.mark.parametrize('email, password, should_pass', NEGATIVE_CASES)
-    def test_login_negative(self, login_page, email, password, should_pass):
-        ...
+    @pytest.mark.parametrize('email, password, expected', NEGATIVE_CASES)
+    def test_negative(self, page, email, password, expected): ...
 
     @pytest.mark.boundary
-    @pytest.mark.parametrize('email, password, should_pass', BOUNDARY_CASES)
-    def test_login_boundary(self, login_page, email, password, should_pass):
-        ...
+    @pytest.mark.parametrize('email, password, expected', BOUNDARY_CASES)
+    def test_boundary(self, page, email, password, expected): ...
 ```
 
-執行篩選：
+### 方式二：從 JSON/CSV 載入
 
-```sh
-pytest -m positive         # 只跑正向測試
-pytest -m negative         # 只跑反向測試
-pytest -m boundary         # 只跑邊界測試
-pytest -m "not negative"   # 跳過反向測試
+```json
+[
+    {"email": "user@mail.com", "password": "Pass1234", "expected": true, "id": "正向-合法帳密"},
+    {"email": "", "password": "Pass1234", "expected": false, "id": "反向-空帳號"}
+]
 ```
 
-完整範例請參考 `tests/test_example_parametrize.py`。
+```python
+from utils.data_loader import load_test_data
+
+LOGIN_CASES = load_test_data('test_data/login.json', fields=['email', 'password', 'expected'])
+
+@pytest.mark.parametrize('email, password, expected', LOGIN_CASES)
+def test_login(self, page, email, password, expected): ...
+```
 
 ---
 
-## BasePage 可用方法一覽
+## 快照輸出結構
 
-| 分類 | 方法 | 說明 |
-|------|------|------|
-| **導航** | `open(url)`, `refresh()`, `go_back()`, `get_title()`, `get_current_url()` | 頁面導航操作 |
-| **查找** | `find_element()`, `find_elements()`, `is_element_present()` | 元素定位 |
-| **等待** | `wait_for_element()`, `wait_for_visible()`, `wait_for_clickable()`, `wait_for_invisible()`, `wait_for_text_present()`, `wait_for_url_contains()` | 各種等待策略 |
-| **互動** | `click()`, `input_text()`, `clear_and_type()`, `get_element_text()`, `get_element_attribute()`, `get_input_value()` | 元素操作 |
-| **下拉** | `select_by_value()`, `select_by_text()`, `select_by_index()` | `<select>` 選單 |
-| **勾選** | `is_selected()`, `set_checkbox()` | Checkbox / Radio |
-| **滾動** | `scroll_to_element()`, `scroll_to_bottom()`, `scroll_to_top()` | 頁面滾動 |
-| **框架** | `switch_to_iframe()`, `switch_to_default()`, `switch_to_window()` | iframe / 多視窗 |
-| **彈窗** | `accept_alert()`, `dismiss_alert()`, `get_alert_text()` | Alert 處理 |
-| **滑鼠** | `hover()`, `double_click()`, `right_click()` | 滑鼠進階操作 |
-| **JS** | `execute_js()`, `js_click()` | JavaScript 執行 |
-| **狀態** | `is_enabled()`, `is_displayed()`, `get_elements_text()`, `get_element_count()` | 元素狀態檢查 |
+啟用快照後，`results/snapshots/` 每個測試會有：
+
+```
+results/snapshots/test_login[user@mail.com]/
+├── 001_open_screenshot.png
+├── 001_open_page.html
+├── 001_open_state.json            # {url, title, form_values, ...}
+├── 002_input_email_screenshot.png
+├── 002_input_email_page.html
+├── 002_input_email_state.json
+├── 003_click_submit_screenshot.png
+├── 003_click_submit_page.html
+├── 003_click_submit_state.json
+└── timeline.json                  # 完整操作時間軸
+```
+
+---
+
+## 設定檔（config/settings.py）
+
+```python
+BROWSER = 'chrome'            # 'chrome' / 'firefox' / 'edge'
+HEADLESS = False              # True = 無頭模式（CI/CD）
+IMPLICIT_WAIT = 10            # 隱式等待秒數
+BASE_URL = 'https://...'      # 根層級測試目標
+TEARDOWN_WAIT = 3             # 每個測試結束後等待
+SCREENSHOT_ON_FAILURE = True  # 失敗時自動截圖
+LOG_ENABLED = True            # 啟用日誌
+```
