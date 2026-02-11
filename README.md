@@ -1,13 +1,14 @@
 # Selenium 自動化測試專案
 
-使用 **Selenium + Python unittest** 搭配 **Page Object Model (POM)** 設計模式的自動化測試專案。
+使用 **Selenium + pytest** 搭配 **Page Object Model (POM)** 設計模式的自動化測試專案。
 
 **功能特色：**
 - Page Object Model 設計模式，頁面操作與測試邏輯分離
+- **pytest** 測試框架，支援 fixture、marker、參數化等進階功能
 - WebDriver Factory 支援 Chrome / Firefox / Edge + Headless 模式
 - 測試失敗自動截圖，方便除錯追蹤
 - 結構化日誌系統，同時輸出到終端機與檔案
-- BeautifulReport HTML 測試報告
+- **pytest-html** 產生互動式 HTML 測試報告
 - `run.py` 統一執行入口，支援命令列參數
 
 ---
@@ -25,9 +26,7 @@ selenium/
 │   └── home_page.py               # 首頁頁面：封裝首頁的元素定位與操作
 ├── tests/                         # 測試案例
 │   ├── __init__.py
-│   ├── base_test.py               # 基礎測試：WebDriver 初始化、截圖、日誌
-│   ├── test_home_page.py          # 首頁測試（終端機輸出）
-│   └── test_home_page_report.py   # 首頁測試（產生 HTML 報告）
+│   └── test_home_page.py          # 首頁測試
 ├── utils/                         # 工具模組
 │   ├── __init__.py
 │   ├── driver_factory.py          # WebDriver 工廠：多瀏覽器 + Headless
@@ -36,9 +35,8 @@ selenium/
 ├── reports/                       # 測試報告輸出目錄
 ├── screenshots/                   # 失敗截圖輸出目錄
 ├── logs/                          # 日誌檔案目錄
-├── img/                           # 文件截圖
-│   ├── selenium_unittest.png
-│   └── selenium_unittest_beautiful_report.png
+├── conftest.py                    # pytest 共用 fixtures（driver, logger, 截圖）
+├── pytest.ini                     # pytest 設定檔
 ├── run.py                         # 統一測試執行入口
 ├── requirements.txt               # Python 依賴套件
 ├── .gitignore
@@ -61,13 +59,19 @@ selenium/
 | **Utils** | `utils/logger.py` | 日誌紀錄（終端機 + 檔案） |
 | **Base Page** | `pages/base_page.py` | 封裝共用的瀏覽器操作 |
 | **Page Object** | `pages/home_page.py` | 定義頁面元素定位器與操作方法 |
-| **Base Test** | `tests/base_test.py` | WebDriver 初始化 / 關閉 / 截圖 / 日誌 |
+| **Fixtures** | `conftest.py` | WebDriver 初始化 / 關閉 / 截圖 / 日誌 |
 | **Test Case** | `tests/test_home_page.py` | 撰寫測試斷言，只關注「要驗證什麼」 |
 
-**好處：**
-- 頁面 UI 變動時，只需修改對應的 Page Object
-- 切換瀏覽器只需改一個設定值
-- 測試案例可讀性更高，更容易維護
+### pytest Fixtures 架構
+
+```
+conftest.py
+├── pytest_addoption()          # 註冊 --browser, --headless-mode 參數
+├── logger (session scope)      # 整個 session 共用一個 Logger
+├── driver (session scope)      # 整個 session 共用一個 WebDriver
+├── pytest_runtest_makereport() # Hook：將測試結果附加到 item
+└── test_lifecycle (autouse)    # 自動套用：紀錄開始/結束、失敗截圖
+```
 
 ---
 
@@ -97,7 +101,8 @@ pip3 install -r requirements.txt
 安裝的套件：
 - `selenium` - 瀏覽器自動化框架
 - `webdriver-manager` - 自動下載對應版本的瀏覽器驅動
-- `BeautifulReport` - 產生 HTML 格式的測試報告
+- `pytest` - Python 測試框架
+- `pytest-html` - 產生 HTML 格式的測試報告
 
 ---
 
@@ -117,31 +122,43 @@ python3 run.py --browser edge
 python3 run.py --headless
 
 # 產生 HTML 報告
-python3 run.py --report
+python3 run.py --html
+
+# 只跑 smoke 標籤的測試
+python3 run.py -m smoke
+
+# 只跑名稱含特定關鍵字的測試
+python3 run.py -k "keyword"
 
 # 組合使用
-python3 run.py --browser firefox --headless --report
+python3 run.py --browser firefox --headless --html
 ```
 
-### 方式二：直接執行單一測試模組
+### 方式二：直接使用 pytest
 
 ```sh
-# 終端機輸出
-python3 -m tests.test_home_page
+# 執行所有測試
+pytest
+
+# 執行特定檔案
+pytest tests/test_home_page.py
+
+# 執行特定測試
+pytest tests/test_home_page.py::TestHomePage::test_entry_title_is_correct
 
 # 產生 HTML 報告
-python3 -m tests.test_home_page_report
+pytest --html=reports/report.html --self-contained-html
+
+# 依標籤篩選
+pytest -m smoke
+pytest -m regression
+
+# 依名稱篩選
+pytest -k "title"
+
+# 指定瀏覽器 + 無頭模式
+pytest --browser firefox --headless-mode
 ```
-
-### 執行結果範例
-
-終端機輸出：
-
-![終端機測試結果](img/selenium_unittest.png)
-
-HTML 報告：
-
-![HTML 報告樣式](img/selenium_unittest_beautiful_report.png)
 
 ---
 
@@ -163,10 +180,6 @@ SCREENSHOT_ON_FAILURE = True  # 測試失敗時是否自動截圖
 
 # === 日誌設定 ===
 LOG_ENABLED = True            # 是否啟用日誌紀錄到檔案
-
-# === 報告設定 ===
-REPORT_FILENAME = 'Demo_BeautifulReport'
-REPORT_DESCRIPTION = 'Selenium 自動化測試報告'
 ```
 
 ---
@@ -186,6 +199,29 @@ BROWSER = 'firefox'  # 切換為 Firefox
 
 ```sh
 python3 run.py --browser edge
+# 或
+pytest --browser edge
+```
+
+### 測試標籤（Markers）
+
+使用 `@pytest.mark` 為測試分類：
+
+```python
+@pytest.mark.smoke
+def test_critical_feature(self, home_page):
+    ...
+
+@pytest.mark.regression
+def test_edge_case(self, home_page):
+    ...
+```
+
+執行時篩選：
+
+```sh
+pytest -m smoke            # 只跑冒煙測試
+pytest -m "not regression" # 跳過迴歸測試
 ```
 
 ### 失敗自動截圖
@@ -198,18 +234,16 @@ screenshots/
 └── test_entry_title_contains_keyword_20240101_143025.png
 ```
 
-檔名格式：`{測試方法名稱}_{日期時間}.png`
-
 ### 日誌系統
 
 日誌同時輸出到終端機和 `logs/` 目錄的檔案中：
 
 ```
-2024-01-01 14:30:20 [INFO] TestHomePage - ===== 開始測試: TestHomePage =====
-2024-01-01 14:30:20 [INFO] TestHomePage - 瀏覽器: chrome | Headless: False
-2024-01-01 14:30:22 [INFO] TestHomePage - WebDriver 初始化完成
-2024-01-01 14:30:22 [INFO] TestHomePage - ▶ 執行: test_entry_title_is_correct
-2024-01-01 14:30:25 [INFO] TestHomePage - ✔ 通過: test_entry_title_is_correct
+2024-01-01 14:30:20 [INFO] selenium_test - ===== 啟動測試 Session =====
+2024-01-01 14:30:20 [INFO] selenium_test - 瀏覽器: chrome | Headless: False
+2024-01-01 14:30:22 [INFO] selenium_test - WebDriver 初始化完成
+2024-01-01 14:30:22 [INFO] selenium_test - ▶ 執行: test_entry_title_is_correct
+2024-01-01 14:30:25 [INFO] selenium_test - ✔ 通過: test_entry_title_is_correct
 ```
 
 ### Headless 模式
@@ -218,6 +252,18 @@ screenshots/
 
 ```sh
 python3 run.py --headless
+# 或
+pytest --headless-mode
+```
+
+### HTML 報告
+
+使用 `pytest-html` 產生互動式報告：
+
+```sh
+python3 run.py --html
+# 或
+pytest --html=reports/report.html --self-contained-html
 ```
 
 ---
@@ -250,23 +296,26 @@ class LoginPage(BasePage):
 
 ### 2. 新增測試案例
 
-在 `tests/` 目錄下建立測試檔案，繼承 `BaseTest`：
+在 `tests/` 目錄下建立測試檔案，使用 pytest fixture：
 
 ```python
 # tests/test_login.py
-from tests.base_test import BaseTest
+import pytest
 from pages.login_page import LoginPage
 
-class TestLogin(BaseTest):
-    def setUp(self):
-        super().setUp()
-        self.login_page = LoginPage(self.driver)
+@pytest.fixture
+def login_page(driver):
+    page = LoginPage(driver)
+    driver.get('https://example.com/login')
+    return page
 
-    def test_login_success(self):
-        self.login_page.enter_username('user@example.com')
-        self.login_page.enter_password('password123')
-        self.login_page.click_login()
-        # 斷言...
+class TestLogin:
+    @pytest.mark.smoke
+    def test_login_success(self, login_page):
+        login_page.enter_username('user@example.com')
+        login_page.enter_password('password123')
+        login_page.click_login()
+        assert 'dashboard' in login_page.driver.current_url
 ```
 
-所有新增的 `test_*.py` 都會被 `run.py` 自動發現並執行。
+所有新增的 `test_*.py` 都會被 pytest 自動發現並執行。

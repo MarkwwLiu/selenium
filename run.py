@@ -4,89 +4,48 @@
 一鍵執行所有測試，支援命令列參數切換瀏覽器與模式。
 
 使用方式:
-    python run.py                          # 預設執行（Chrome，有畫面）
-    python run.py --browser firefox        # 用 Firefox 執行
-    python run.py --headless               # 無頭模式
-    python run.py --report                 # 產生 HTML 報告
-    python run.py --browser edge --headless --report  # 組合使用
+    python run.py                                       # 預設執行（Chrome，有畫面）
+    python run.py --browser firefox                     # 用 Firefox 執行
+    python run.py --headless                            # 無頭模式
+    python run.py --html                                # 產生 HTML 報告
+    python run.py -m smoke                              # 只跑 smoke 標籤的測試
+    python run.py -k "keyword"                          # 只跑名稱含 keyword 的測試
+    python run.py --browser edge --headless --html      # 組合使用
 """
 
-import os
 import sys
-import argparse
-import unittest
-
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-
-import config.settings as settings
-
-
-def parse_args():
-    parser = argparse.ArgumentParser(description='Selenium 自動化測試執行器')
-    parser.add_argument(
-        '--browser', '-b',
-        choices=['chrome', 'firefox', 'edge'],
-        default=None,
-        help='指定瀏覽器（預設使用 config/settings.py 的設定）',
-    )
-    parser.add_argument(
-        '--headless',
-        action='store_true',
-        default=None,
-        help='啟用無頭模式（不顯示瀏覽器視窗）',
-    )
-    parser.add_argument(
-        '--report',
-        action='store_true',
-        help='產生 HTML 測試報告（BeautifulReport）',
-    )
-    return parser.parse_args()
-
-
-def run_with_report():
-    """使用 BeautifulReport 產生 HTML 報告。"""
-    from BeautifulReport import BeautifulReport
-
-    os.makedirs(settings.REPORTS_DIR, exist_ok=True)
-
-    loader = unittest.TestLoader()
-    suite = loader.discover('tests', pattern='test_*.py')
-
-    result = BeautifulReport(suite)
-    result.report(
-        filename=settings.REPORT_FILENAME,
-        description=settings.REPORT_DESCRIPTION,
-        report_dir=settings.REPORTS_DIR,
-    )
-    report_path = os.path.join(settings.REPORTS_DIR, f'{settings.REPORT_FILENAME}.html')
-    print(f'\n報告已產生: {report_path}')
-
-
-def run_with_text():
-    """使用 TextTestRunner 輸出到終端機。"""
-    loader = unittest.TestLoader()
-    suite = loader.discover('tests', pattern='test_*.py')
-    runner = unittest.TextTestRunner(verbosity=2)
-    runner.run(suite)
+import pytest
 
 
 def main():
-    args = parse_args()
+    args = ['--tb=short', '-v']
 
-    # 用命令列參數覆蓋 settings（如有指定）
-    if args.browser:
-        settings.BROWSER = args.browser
-    if args.headless:
-        settings.HEADLESS = True
+    # 解析自訂參數並轉換為 pytest 格式
+    i = 1
+    passthrough = []
+    while i < len(sys.argv):
+        arg = sys.argv[i]
 
-    print(f'瀏覽器: {settings.BROWSER}')
-    print(f'Headless: {settings.HEADLESS}')
+        if arg in ('--browser', '-b') and i + 1 < len(sys.argv):
+            args.extend(['--browser', sys.argv[i + 1]])
+            i += 2
+        elif arg == '--headless':
+            args.append('--headless-mode')
+            i += 1
+        elif arg == '--html':
+            args.extend(['--html=reports/report.html', '--self-contained-html'])
+            i += 1
+        else:
+            passthrough.append(arg)
+            i += 1
+
+    args.extend(passthrough)
+
+    print(f'參數: {" ".join(args)}')
     print('-' * 40)
 
-    if args.report:
-        run_with_report()
-    else:
-        run_with_text()
+    exit_code = pytest.main(args)
+    sys.exit(exit_code)
 
 
 if __name__ == '__main__':
