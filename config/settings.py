@@ -2,6 +2,7 @@
 Selenium 測試專案 - 集中設定檔
 
 將所有可配置的參數集中管理，避免在程式碼中硬編碼。
+多環境切換請參考 config/environments.py。
 """
 
 import os
@@ -11,6 +12,9 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 REPORTS_DIR = os.path.join(BASE_DIR, 'reports')
 SCREENSHOTS_DIR = os.path.join(BASE_DIR, 'screenshots')
 LOGS_DIR = os.path.join(BASE_DIR, 'logs')
+BASELINES_DIR = os.path.join(BASE_DIR, 'baselines')
+DIFFS_DIR = os.path.join(BASE_DIR, 'diffs')
+COOKIES_DIR = os.path.join(BASE_DIR, 'cookies')
 
 # === 瀏覽器設定 ===
 BROWSER = 'chrome'           # 支援: 'chrome', 'firefox', 'edge'

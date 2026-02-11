@@ -24,6 +24,8 @@ def pytest_addoption(parser):
                      help='指定瀏覽器（預設使用 config/settings.py 的設定）')
     parser.addoption('--headless-mode', action='store_true', default=False,
                      help='啟用無頭模式（不顯示瀏覽器視窗）')
+    parser.addoption('--env', default=None, choices=['dev', 'staging', 'prod'],
+                     help='指定測試環境（預設使用環境變數 TEST_ENV 或 dev）')
 
 
 @pytest.fixture(scope='session')
@@ -31,6 +33,20 @@ def logger():
     """Session 層級的 Logger fixture。"""
     log_dir = LOGS_DIR if LOG_ENABLED else None
     return setup_logger(name='selenium_test', log_dir=log_dir)
+
+
+@pytest.fixture(scope='session')
+def env_config(request):
+    """
+    Session 層級的環境設定 fixture。
+
+    Usage:
+        def test_example(env_config):
+            print(env_config['base_url'])  # 依環境取得對應 URL
+    """
+    from config.environments import get_env_config
+    env_name = request.config.getoption('--env')
+    return get_env_config(env_name)
 
 
 @pytest.fixture(scope='session')
@@ -54,6 +70,76 @@ def driver(request, logger):
 
     _driver.quit()
     logger.info('===== 測試 Session 結束 =====\n')
+
+
+@pytest.fixture(scope='function')
+def soft_assert():
+    """
+    Soft Assert fixture，每個測試自動取得新實例。
+
+    Usage:
+        def test_example(soft_assert):
+            soft_assert.equal(title, '首頁')
+            soft_assert.true(is_visible)
+            soft_assert.assert_all()
+    """
+    from utils.soft_assert import SoftAssert
+    return SoftAssert()
+
+
+@pytest.fixture(scope='function')
+def console_capture(driver):
+    """
+    Console 擷取 fixture。
+
+    Usage:
+        def test_example(console_capture):
+            # ... 執行操作 ...
+            console_capture.assert_no_errors()
+    """
+    from utils.console_capture import ConsoleCapture
+    return ConsoleCapture(driver)
+
+
+@pytest.fixture(scope='session')
+def cookie_manager(driver):
+    """
+    Cookie 管理 fixture。
+
+    Usage:
+        def test_example(cookie_manager):
+            cookie_manager.save_cookies('cookies/state.json')
+    """
+    from utils.cookie_manager import CookieManager
+    return CookieManager(driver)
+
+
+@pytest.fixture(scope='session')
+def table_parser(driver):
+    """
+    Table 解析 fixture。
+
+    Usage:
+        def test_example(table_parser):
+            data = table_parser.parse(By.ID, 'my-table')
+    """
+    from utils.table_parser import TableParser
+    return TableParser(driver)
+
+
+@pytest.fixture(scope='session')
+def visual_regression(driver):
+    """
+    視覺回歸 fixture。
+
+    Usage:
+        def test_example(visual_regression):
+            result = visual_regression.check('homepage')
+            assert result['match']
+    """
+    from config.settings import BASELINES_DIR, DIFFS_DIR
+    from utils.visual_regression import VisualRegression
+    return VisualRegression(driver, baseline_dir=BASELINES_DIR, diff_dir=DIFFS_DIR)
 
 
 @pytest.hookimpl(tryfirst=True, hookwrapper=True)

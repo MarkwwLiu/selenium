@@ -215,6 +215,86 @@ class BasePage:
         handles = self.driver.window_handles
         self.driver.switch_to.window(handles[index])
 
+    # === 檔案上傳 ===
+
+    def upload_file(self, by, value, file_path):
+        """
+        上傳檔案到 <input type="file"> 元素。
+
+        Usage:
+            page.upload_file(By.ID, 'file-input', '/path/to/file.pdf')
+        """
+        import os
+        if not os.path.isabs(file_path):
+            file_path = os.path.abspath(file_path)
+        element = self.wait_for_element(by, value)
+        element.send_keys(file_path)
+        self._take_snapshot(f'upload_{value}')
+
+    def upload_files(self, by, value, file_paths):
+        """
+        上傳多個檔案（需 <input multiple>）。
+
+        Usage:
+            page.upload_files(By.ID, 'file-input', ['/path/a.pdf', '/path/b.jpg'])
+        """
+        import os
+        abs_paths = []
+        for fp in file_paths:
+            abs_paths.append(fp if os.path.isabs(fp) else os.path.abspath(fp))
+        element = self.wait_for_element(by, value)
+        element.send_keys('\n'.join(abs_paths))
+        self._take_snapshot(f'upload_multi_{value}')
+
+    # === 拖曳放置 ===
+
+    def drag_and_drop(self, source_by, source_value, target_by, target_value):
+        """
+        將來源元素拖曳到目標元素。
+
+        Usage:
+            page.drag_and_drop(By.ID, 'item', By.ID, 'drop-zone')
+        """
+        source = self.wait_for_visible(source_by, source_value)
+        target = self.wait_for_visible(target_by, target_value)
+        ActionChains(self.driver).drag_and_drop(source, target).perform()
+        self._take_snapshot(f'drag_{source_value}_to_{target_value}')
+
+    def drag_and_drop_by_offset(self, by, value, x_offset, y_offset):
+        """
+        將元素拖曳到指定偏移量位置。
+
+        Usage:
+            page.drag_and_drop_by_offset(By.ID, 'slider', 100, 0)
+        """
+        element = self.wait_for_visible(by, value)
+        ActionChains(self.driver).drag_and_drop_by_offset(
+            element, x_offset, y_offset
+        ).perform()
+        self._take_snapshot(f'drag_offset_{value}')
+
+    # === 鍵盤操作 ===
+
+    def press_keys(self, *keys):
+        """
+        在頁面層級發送鍵盤按鍵（不針對特定元素）。
+
+        Usage:
+            page.press_keys(Keys.ESCAPE)
+            page.press_keys(Keys.CONTROL, 'a')
+        """
+        ActionChains(self.driver).send_keys(*keys).perform()
+
+    def send_keys_to_element(self, by, value, *keys):
+        """
+        在指定元素上發送鍵盤組合鍵。
+
+        Usage:
+            page.send_keys_to_element(By.ID, 'editor', Keys.CONTROL, 'c')
+        """
+        element = self.wait_for_visible(by, value)
+        element.send_keys(*keys)
+
     # === 滑鼠操作 ===
 
     def hover(self, by, value):

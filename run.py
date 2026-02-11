@@ -8,6 +8,8 @@
     python run.py --browser firefox                     # 用 Firefox 執行
     python run.py --headless                            # 無頭模式
     python run.py --html                                # 產生 HTML 報告
+    python run.py --allure                              # 產生 Allure 報告
+    python run.py --env staging                         # 指定測試環境
     python run.py -m smoke                              # 只跑 smoke 標籤的測試
     python run.py -k "keyword"                          # 只跑名稱含 keyword 的測試
     python run.py --browser edge --headless --html      # 組合使用
@@ -35,6 +37,12 @@ def main():
         elif arg == '--html':
             args.extend(['--html=reports/report.html', '--self-contained-html'])
             i += 1
+        elif arg == '--allure':
+            args.extend(['--alluredir=reports/allure-results'])
+            i += 1
+        elif arg in ('--env', '-e') and i + 1 < len(sys.argv):
+            args.extend(['--env', sys.argv[i + 1]])
+            i += 2
         else:
             passthrough.append(arg)
             i += 1
