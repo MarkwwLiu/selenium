@@ -14,14 +14,25 @@ from selenium.webdriver.common.keys import Keys
 class BasePage:
     """所有 Page Object 的基礎類別。"""
 
-    def __init__(self, driver: WebDriver):
+    def __init__(self, driver: WebDriver, snapshot=None):
         self.driver = driver
+        self._snapshot = snapshot  # PageSnapshot 實例，設定後每步自動快照
+
+    def enable_snapshot(self, snapshot):
+        """啟用自動快照（傳入 PageSnapshot 實例）。"""
+        self._snapshot = snapshot
+
+    def _take_snapshot(self, label=''):
+        """如果有啟用快照，自動擷取。"""
+        if self._snapshot:
+            self._snapshot.take(label)
 
     # === 導航 ===
 
     def open(self, url: str):
         """開啟指定的 URL。"""
         self.driver.get(url)
+        self._take_snapshot('open')
 
     def get_title(self):
         """取得頁面標題 (browser tab title)。"""
@@ -96,6 +107,7 @@ class BasePage:
     def click(self, by, value):
         """等待元素可點擊後點擊。"""
         self.wait_for_clickable(by, value).click()
+        self._take_snapshot(f'click_{value}')
 
     def input_text(self, by, value, text, clear_first=True):
         """在輸入框中輸入文字。"""
@@ -103,6 +115,7 @@ class BasePage:
         if clear_first:
             element.clear()
         element.send_keys(text)
+        self._take_snapshot(f'input_{value}')
 
     def clear_and_type(self, by, value, text):
         """用全選+刪除的方式清除後輸入（處理 clear() 無效的情況）。"""
@@ -129,16 +142,19 @@ class BasePage:
         """透過 value 選擇下拉選單選項。"""
         element = self.wait_for_visible(by, value)
         Select(element).select_by_value(option_value)
+        self._take_snapshot(f'select_{value}')
 
     def select_by_text(self, by, value, visible_text):
         """透過顯示文字選擇下拉選單選項。"""
         element = self.wait_for_visible(by, value)
         Select(element).select_by_visible_text(visible_text)
+        self._take_snapshot(f'select_{value}')
 
     def select_by_index(self, by, value, index):
         """透過索引選擇下拉選單選項。"""
         element = self.wait_for_visible(by, value)
         Select(element).select_by_index(index)
+        self._take_snapshot(f'select_{value}')
 
     # === Checkbox / Radio ===
 

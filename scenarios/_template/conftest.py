@@ -4,7 +4,7 @@
 由 generate_scenario.py 複製後自動配置。
 職責：
 1. 將專案根目錄加入 sys.path（讓 import 核心模組可用）
-2. 提供情境專屬的 fixture
+2. 提供情境專屬的 fixture（driver、logger、snapshot、analyzer）
 3. 截圖與報告輸出到情境自己的 results/ 目錄
 """
 
@@ -17,6 +17,7 @@ import pytest
 SCENARIO_DIR = os.path.dirname(os.path.abspath(__file__))
 SCENARIO_NAME = os.path.basename(SCENARIO_DIR)
 RESULTS_DIR = os.path.join(SCENARIO_DIR, 'results')
+SNAPSHOTS_DIR = os.path.join(RESULTS_DIR, 'snapshots')
 
 ROOT_DIR = os.path.abspath(os.path.join(SCENARIO_DIR, '..', '..'))
 if ROOT_DIR not in sys.path:
@@ -27,6 +28,8 @@ from utils.driver_factory import DriverFactory
 from utils.screenshot import take_screenshot
 from utils.logger import setup_logger
 from utils.waiter import Waiter
+from utils.page_snapshot import PageSnapshot
+from utils.page_analyzer import PageAnalyzer
 
 # === 情境參數（產生器會覆寫這裡）===
 SCENARIO_URL = ''
@@ -66,6 +69,25 @@ def waiter(driver):
     return Waiter(driver)
 
 
+@pytest.fixture(scope='session')
+def analyzer(driver):
+    """頁面元素分析器 fixture。"""
+    return PageAnalyzer(driver)
+
+
+@pytest.fixture
+def snapshot(driver):
+    """
+    每個測試獨立的快照管理器。
+    快照存到 results/snapshots/{測試名稱}/ 目錄下。
+    """
+    test_name = os.environ.get('PYTEST_CURRENT_TEST', 'unknown').split('::')[-1].split(' ')[0]
+    snap_dir = os.path.join(SNAPSHOTS_DIR, test_name)
+    snap = PageSnapshot(driver, snap_dir)
+    yield snap
+    snap.save_timeline()
+
+
 @pytest.fixture
 def scenario_url():
     """取得此情境的目標 URL。"""
@@ -86,6 +108,7 @@ def test_lifecycle(request, driver, logger):
     自動套用：紀錄測試開始、失敗截圖到情境 results/、紀錄結果。
     """
     test_name = request.node.name
+    os.environ['PYTEST_CURRENT_TEST'] = f'{request.node.nodeid} (call)'
     logger.info(f'▶ 執行: {test_name}')
 
     yield

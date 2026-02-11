@@ -2,7 +2,7 @@
 Demo 情境：Google 搜尋測試
 
 示範如何用情境模組架構撰寫獨立測試。
-所有截圖、日誌輸出到 scenarios/demo_search/results/。
+所有截圖、日誌、快照輸出到 scenarios/demo_search/results/。
 """
 
 import os
@@ -14,6 +14,7 @@ import pytest
 SCENARIO_DIR = os.path.dirname(os.path.abspath(__file__))
 SCENARIO_NAME = os.path.basename(SCENARIO_DIR)
 RESULTS_DIR = os.path.join(SCENARIO_DIR, 'results')
+SNAPSHOTS_DIR = os.path.join(RESULTS_DIR, 'snapshots')
 
 ROOT_DIR = os.path.abspath(os.path.join(SCENARIO_DIR, '..', '..'))
 if ROOT_DIR not in sys.path:
@@ -24,6 +25,8 @@ from utils.driver_factory import DriverFactory
 from utils.screenshot import take_screenshot
 from utils.logger import setup_logger
 from utils.waiter import Waiter
+from utils.page_snapshot import PageSnapshot
+from utils.page_analyzer import PageAnalyzer
 
 # === 情境參數 ===
 SCENARIO_URL = 'https://www.google.com'
@@ -57,6 +60,22 @@ def waiter(driver):
     return Waiter(driver)
 
 
+@pytest.fixture(scope='session')
+def analyzer(driver):
+    """頁面元素分析器。"""
+    return PageAnalyzer(driver)
+
+
+@pytest.fixture
+def snapshot(driver):
+    """每個測試獨立的快照管理器。"""
+    test_name = os.environ.get('PYTEST_CURRENT_TEST', 'unknown').split('::')[-1].split(' ')[0]
+    snap_dir = os.path.join(SNAPSHOTS_DIR, test_name)
+    snap = PageSnapshot(driver, snap_dir)
+    yield snap
+    snap.save_timeline()
+
+
 @pytest.fixture
 def scenario_url():
     return SCENARIO_URL
@@ -72,6 +91,7 @@ def pytest_runtest_makereport(item, call):
 @pytest.fixture(autouse=True)
 def test_lifecycle(request, driver, logger):
     test_name = request.node.name
+    os.environ['PYTEST_CURRENT_TEST'] = f'{request.node.nodeid} (call)'
     logger.info(f'▶ 執行: {test_name}')
 
     yield
