@@ -23,9 +23,15 @@ selenium/
 │   │   ├── waiter.py                 # 進階等待工具（AJAX/元素穩定/屬性變化）
 │   │   ├── page_analyzer.py          # 頁面元素分析器（自動掃描 + locator 產生）
 │   │   ├── page_snapshot.py          # 頁面快照（截圖+HTML+狀態+時間軸）
-│   │   └── test_generator.py         # 測試案例自動產生器
+│   │   ├── test_generator.py         # 測試案例自動產生器
+│   │   ├── cookie_manager.py         # Cookie 管理（保存/載入登入狀態）
+│   │   ├── console_capture.py        # 瀏覽器 Console Log 擷取
+│   │   ├── soft_assert.py            # 軟斷言（不中斷收集所有失敗）
+│   │   ├── table_parser.py           # HTML 表格解析為結構化資料
+│   │   └── visual_regression.py      # 截圖比對（視覺回歸測試）
 │   ├── config/
-│   │   └── settings.py               # 全域設定（瀏覽器/等待/截圖/日誌）
+│   │   ├── settings.py               # 全域設定（瀏覽器/等待/截圖/日誌）
+│   │   └── environments.py           # 多環境切換（dev/staging/prod）
 │   ├── conftest.py                   # 根層級 pytest fixtures
 │   ├── pytest.ini                    # pytest 設定 + markers
 │   └── generate_scenario.py          # 情境模組產生器
@@ -169,6 +175,9 @@ pytest scenarios/login_test/tests/ --html=scenarios/login_test/results/report.ht
 | **滾動** | `scroll_to_element()` `scroll_to_bottom()` `scroll_to_top()` |
 | **框架** | `switch_to_iframe()` `switch_to_default()` `switch_to_window()` |
 | **彈窗** | `accept_alert()` `dismiss_alert()` `get_alert_text()` |
+| **檔案** | `upload_file()` `upload_files()` |
+| **拖曳** | `drag_and_drop()` `drag_and_drop_by_offset()` |
+| **鍵盤** | `press_keys()` `send_keys_to_element()` |
 | **滑鼠** | `hover()` `double_click()` `right_click()` |
 | **JS** | `execute_js()` `js_click()` |
 | **狀態** | `is_enabled()` `is_displayed()` `get_elements_text()` `get_element_count()` |
@@ -184,6 +193,43 @@ pytest scenarios/login_test/tests/ --html=scenarios/login_test/results/report.ht
 | **data_loader.py** | JSON/CSV → pytest.param 列表 | `load_test_data('data.json', ['email', 'pass'])` |
 | **retry.py** | 重試裝飾器，處理不穩定元素 | `@retry(max_attempts=3)` / `@retry_on_stale` |
 | **waiter.py** | 進階等待（AJAX/元素穩定/屬性變化） | `waiter.wait_for_ajax()` / `waiter.wait_for_stable()` |
+| **cookie_manager.py** | Cookie 管理，保存/載入登入狀態 | `cm.save_cookies('path')` / `cm.load_cookies('path')` |
+| **console_capture.py** | 擷取瀏覽器 JS 錯誤與警告 | `capture.get_errors()` / `capture.assert_no_errors()` |
+| **soft_assert.py** | 軟斷言，不中斷收集所有失敗 | `soft.equal(a, b)` → `soft.assert_all()` |
+| **table_parser.py** | HTML 表格解析為 list[dict] | `parser.parse(By.ID, 'table')` / `parser.find_rows()` |
+| **visual_regression.py** | 截圖比對，偵測 UI 視覺變化 | `vr.check('name', threshold=0.01)` |
+
+### 多環境設定（config/environments.py）
+
+支援 `dev` / `staging` / `prod` 環境切換：
+
+```sh
+# 方式一：命令列參數
+pytest tests/ --env staging
+
+# 方式二：環境變數
+TEST_ENV=prod pytest tests/
+
+# 方式三：在程式碼中使用
+from config.environments import get_env_config
+config = get_env_config('staging')
+driver.get(config['base_url'])
+```
+
+### 失敗重跑（穩定性）
+
+使用 `pytest-rerunfailures` 處理不穩定的測試：
+
+```sh
+# 失敗自動重跑 2 次
+pytest tests/ --reruns 2
+
+# 重跑間隔 3 秒
+pytest tests/ --reruns 2 --reruns-delay 3
+
+# 只對標記 @pytest.mark.flaky 的測試重跑
+pytest tests/ -m flaky --reruns 2
+```
 
 ### Markers
 
@@ -194,6 +240,8 @@ pytest scenarios/login_test/tests/ --html=scenarios/login_test/results/report.ht
 | `@pytest.mark.positive` | 正向測試 | `pytest -m positive` |
 | `@pytest.mark.negative` | 反向測試 | `pytest -m negative` |
 | `@pytest.mark.boundary` | 邊界測試 | `pytest -m boundary` |
+| `@pytest.mark.visual` | 視覺回歸 | `pytest -m visual` |
+| `@pytest.mark.flaky` | 不穩定測試 | `pytest -m flaky --reruns 2` |
 
 ---
 
@@ -209,6 +257,12 @@ pytest scenarios/login_test/tests/ --html=scenarios/login_test/results/report.ht
 | `analyzer` | session | 頁面元素分析器 |
 | `snapshot` | function | 快照管理器，存到 `results/snapshots/` |
 | `scenario_url` | function | 情境目標 URL |
+| `cookie_manager` | session | Cookie 管理（保存/載入登入狀態） |
+| `console_capture` | function | 瀏覽器 Console Log 擷取 |
+| `soft_assert` | function | 軟斷言（不中斷收集所有失敗） |
+| `table_parser` | session | HTML 表格解析 |
+| `visual_regression` | session | 截圖比對（視覺回歸） |
+| `env_config` | session | 多環境設定（根層級 conftest） |
 | `test_lifecycle` | autouse | 自動紀錄 + 失敗截圖 |
 
 ---
@@ -292,4 +346,7 @@ BASE_URL = 'https://...'      # 根層級測試目標
 TEARDOWN_WAIT = 3             # 每個測試結束後等待
 SCREENSHOT_ON_FAILURE = True  # 失敗時自動截圖
 LOG_ENABLED = True            # 啟用日誌
+BASELINES_DIR = '...'         # 視覺回歸 baseline 存放路徑
+DIFFS_DIR = '...'             # 視覺回歸差異圖存放路徑
+COOKIES_DIR = '...'           # Cookie 狀態存放路徑
 ```

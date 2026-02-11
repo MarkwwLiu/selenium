@@ -10,6 +10,7 @@
     python run.py --html                                # 產生 HTML 報告
     python run.py --allure                              # 產生 Allure 報告
     python run.py --env staging                         # 指定測試環境
+    python run.py --reruns 2                            # 失敗重跑 2 次
     python run.py -m smoke                              # 只跑 smoke 標籤的測試
     python run.py -k "keyword"                          # 只跑名稱含 keyword 的測試
     python run.py --browser edge --headless --html      # 組合使用
@@ -42,6 +43,12 @@ def main():
             i += 1
         elif arg in ('--env', '-e') and i + 1 < len(sys.argv):
             args.extend(['--env', sys.argv[i + 1]])
+            i += 2
+        elif arg == '--reruns' and i + 1 < len(sys.argv):
+            args.extend(['--reruns', sys.argv[i + 1]])
+            i += 2
+        elif arg == '--reruns-delay' and i + 1 < len(sys.argv):
+            args.extend(['--reruns-delay', sys.argv[i + 1]])
             i += 2
         else:
             passthrough.append(arg)

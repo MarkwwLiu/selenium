@@ -218,6 +218,119 @@ results/
 | 只跑邊界 | `pytest scenarios/<名稱>/tests/ -m boundary` |
 | 無頭模式 | 加 `--headless-mode` |
 | HTML 報告 | 加 `--html=scenarios/<名稱>/results/report.html` |
+| Allure 報告 | `python run.py --allure` |
+| 指定環境 | 加 `--env staging` 或 `TEST_ENV=prod` |
+| 失敗重跑 | 加 `--reruns 2 --reruns-delay 3` |
+
+---
+
+## Step 8：使用進階工具
+
+### 檔案上傳
+
+```python
+# BasePage 內建方法
+page.upload_file(By.ID, 'file-input', '/path/to/document.pdf')
+page.upload_files(By.ID, 'file-input', ['/path/a.pdf', '/path/b.jpg'])
+```
+
+### 拖曳放置
+
+```python
+page.drag_and_drop(By.ID, 'item', By.ID, 'drop-zone')
+page.drag_and_drop_by_offset(By.ID, 'slider', 100, 0)
+```
+
+### Cookie 管理（跳過重複登入）
+
+```python
+def test_with_saved_login(cookie_manager, driver):
+    # 首次登入後保存 Cookie
+    cookie_manager.save_cookies('cookies/login_state.json')
+
+    # 下次直接載入，不用重新登入
+    driver.get('https://example.com')
+    cookie_manager.load_cookies('cookies/login_state.json')
+    driver.refresh()
+```
+
+### Console Log 擷取
+
+```python
+def test_no_js_errors(console_capture):
+    # ... 執行頁面操作 ...
+
+    # 檢查頁面有沒有 JavaScript 錯誤
+    console_capture.assert_no_errors()
+
+    # 或手動查看
+    errors = console_capture.get_errors()
+    warnings = console_capture.get_warnings()
+```
+
+### Soft Assert（不中斷收集失敗）
+
+```python
+def test_dashboard(soft_assert, driver):
+    soft_assert.equal(driver.title, '儀表板', '標題不正確')
+    soft_assert.true(is_menu_visible, '選單應可見')
+    soft_assert.contains(page_text, '歡迎', '應包含歡迎訊息')
+    soft_assert.greater(item_count, 0, '應有至少一筆資料')
+
+    # 最後統一回報所有失敗
+    soft_assert.assert_all()
+```
+
+### HTML 表格解析
+
+```python
+def test_user_table(table_parser):
+    # 解析整張表格
+    data = table_parser.parse(By.ID, 'user-table')
+    # data = [{'姓名': '王小明', '年齡': '25'}, ...]
+
+    # 搜尋特定列
+    admins = table_parser.find_rows(By.ID, 'user-table', 角色='管理員')
+
+    # 取得特定欄位所有值
+    names = table_parser.get_column_values(By.ID, 'user-table', '姓名')
+```
+
+### 視覺回歸（截圖比對）
+
+```python
+@pytest.mark.visual
+def test_homepage_visual(visual_regression):
+    # 首次執行自動建立 baseline，後續執行比對差異
+    result = visual_regression.check('homepage', threshold=0.01)
+    assert result['match'], f'UI 差異 {result["diff_ratio"]:.1%}'
+
+    # UI 改版後更新 baseline
+    # visual_regression.update_baseline('homepage')
+```
+
+### 多環境切換
+
+```sh
+# 命令列指定環境
+pytest tests/ --env staging
+
+# 環境變數
+TEST_ENV=prod pytest tests/
+```
+
+```python
+def test_with_env(env_config):
+    print(env_config['base_url'])   # https://staging.example.com
+    print(env_config['env_name'])   # staging
+```
+
+### 失敗重跑
+
+```sh
+# 失敗自動重跑 2 次，間隔 3 秒
+pytest tests/ --reruns 2 --reruns-delay 3
+```
 
 ---
 

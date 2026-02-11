@@ -23,13 +23,21 @@ ROOT_DIR = os.path.abspath(os.path.join(SCENARIO_DIR, '..', '..'))
 if ROOT_DIR not in sys.path:
     sys.path.insert(0, ROOT_DIR)
 
-from config.settings import BROWSER, HEADLESS, IMPLICIT_WAIT, TEARDOWN_WAIT, LOG_ENABLED
+from config.settings import (
+    BROWSER, HEADLESS, IMPLICIT_WAIT, TEARDOWN_WAIT, LOG_ENABLED,
+    BASELINES_DIR, DIFFS_DIR,
+)
 from utils.driver_factory import DriverFactory
 from utils.screenshot import take_screenshot
 from utils.logger import setup_logger
 from utils.waiter import Waiter
 from utils.page_snapshot import PageSnapshot
 from utils.page_analyzer import PageAnalyzer
+from utils.cookie_manager import CookieManager
+from utils.console_capture import ConsoleCapture
+from utils.soft_assert import SoftAssert
+from utils.table_parser import TableParser
+from utils.visual_regression import VisualRegression
 
 # === 情境參數（產生器會覆寫這裡）===
 SCENARIO_URL = ''
@@ -92,6 +100,38 @@ def snapshot(driver):
 def scenario_url():
     """取得此情境的目標 URL。"""
     return SCENARIO_URL
+
+
+@pytest.fixture(scope='session')
+def cookie_manager(driver):
+    """Cookie 管理工具，保存/載入登入狀態。"""
+    return CookieManager(driver)
+
+
+@pytest.fixture(scope='function')
+def console_capture(driver):
+    """瀏覽器 Console Log 擷取器。"""
+    return ConsoleCapture(driver)
+
+
+@pytest.fixture(scope='function')
+def soft_assert():
+    """軟斷言工具，收集所有失敗後統一回報。"""
+    return SoftAssert()
+
+
+@pytest.fixture(scope='session')
+def table_parser(driver):
+    """HTML 表格解析工具。"""
+    return TableParser(driver)
+
+
+@pytest.fixture(scope='session')
+def visual_regression(driver):
+    """視覺回歸比對工具。"""
+    baseline_dir = os.path.join(RESULTS_DIR, 'baselines')
+    diff_dir = os.path.join(RESULTS_DIR, 'diffs')
+    return VisualRegression(driver, baseline_dir=baseline_dir, diff_dir=diff_dir)
 
 
 @pytest.hookimpl(tryfirst=True, hookwrapper=True)
