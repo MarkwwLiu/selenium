@@ -22,5 +22,11 @@ env/
 reports/*.html
 reports/*.json
 
+# 截圖
+screenshots/*.png
+
+# 日誌
+logs/*.log
+
 # 環境設定
 .env

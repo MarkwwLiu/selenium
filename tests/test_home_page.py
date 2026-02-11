@@ -20,6 +20,7 @@ class TestHomePage(BaseTest):
 
     def setUp(self):
         """每個測試方法執行前，開啟首頁。"""
+        super().setUp()
         self.home_page = HomePage(self.driver)
         self.home_page.open_home()
 
