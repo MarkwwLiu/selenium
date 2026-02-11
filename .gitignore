@@ -21,6 +21,20 @@ env/
 # 測試報告
 reports/*.html
 reports/*.json
+reports/allure-results/
+
+# 截圖
+screenshots/*.png
+
+# 日誌
+logs/*.log
+
+# 視覺回歸
+baselines/*.png
+diffs/*.png
+
+# Cookie 狀態
+cookies/*.json
 
 # 環境設定
 .env

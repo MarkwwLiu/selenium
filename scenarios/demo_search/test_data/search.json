@@ -1,0 +1,8 @@
+[
+    {"keyword": "Selenium Python", "has_result": true, "type": "positive", "id": "正向-Selenium關鍵字"},
+    {"keyword": "pytest automation", "has_result": true, "type": "positive", "id": "正向-pytest關鍵字"},
+    {"keyword": "xyzzyspoon!shift+7", "has_result": false, "type": "negative", "id": "反向-無意義字串"},
+    {"keyword": "", "has_result": false, "type": "negative", "id": "反向-空字串"},
+    {"keyword": "a", "has_result": true, "type": "boundary", "id": "邊界-單一字元"},
+    {"keyword": "Selenium WebDriver automated testing framework for web applications", "has_result": true, "type": "boundary", "id": "邊界-長關鍵字"}
+]
