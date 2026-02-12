@@ -36,5 +36,9 @@ diffs/*.png
 # Cookie 狀態
 cookies/*.json
 
+# 測試覆蓋率
+.coverage
+htmlcov/
+
 # 環境設定
 .env
