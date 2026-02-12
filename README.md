@@ -38,6 +38,7 @@ selenium/
 │   ├── conftest.py                   # 根層級 pytest fixtures
 │   ├── pytest.ini                    # pytest 設定 + markers
 │   ├── generate_scenario.py          # 情境模組產生器
+│   ├── export_test.py                # 測試匯出器（拋棄式腳本產生）
 │   ├── Makefile                      # 統一指令入口（make test / lint / format）
 │   └── .pre-commit-config.yaml       # pre-commit hooks 設定
 │
@@ -383,6 +384,8 @@ make lint             # flake8 檢查
 make format           # black + isort 格式化
 make clean            # 清理產出檔案
 
+make export FILE=scenarios/demo_search/tests/test_search.py  # 匯出拋棄式腳本
+
 # 變數覆寫
 make test BROWSER=firefox ENV=staging
 ```
@@ -476,6 +479,45 @@ def test_register(data_factory):
 
     # 批量 (搭配 parametrize)
     users = data_factory.users(count=5)
+```
+
+---
+
+## 測試匯出器（拋棄式腳本）
+
+指定任意測試檔案，自動追蹤所有相依的 Page Object、BasePage、測試資料，
+打包成**單一獨立 `.py` 檔**，可以複製到任何地方直接執行，不需要整個框架。
+
+```sh
+# 基本匯出
+python export_test.py scenarios/demo_search/tests/test_search.py
+
+# 指定輸出路徑 + 無頭模式
+python export_test.py scenarios/demo_search/tests/test_search.py -o ~/Desktop/run_search.py --headless
+
+# 指定瀏覽器
+python export_test.py tests/test_home_page.py --browser firefox
+
+# 透過 Makefile
+make export FILE=scenarios/demo_search/tests/test_search.py HEADLESS=1
+```
+
+匯出的腳本包含：
+
+| 區塊 | 說明 |
+|------|------|
+| BasePage | 完整內嵌，不需 `pages/` 目錄 |
+| Page Object | 情境用到的 Page Object 內嵌 |
+| 測試資料 | JSON 轉為 Python literal 內嵌 |
+| Driver 設定 | 自帶 `create_driver()`，含 webdriver-manager |
+| Fixtures | `driver` / `scenario_url` 等自動產生 |
+| 測試程式碼 | 原封保留 |
+| `__main__` | 可直接 `python exported_xxx.py` 執行 |
+
+執行匯出的腳本：
+```sh
+pytest exported_test_search.py -v
+python exported_test_search.py
 ```
 
 ---

@@ -221,6 +221,9 @@ results/
 | Allure 報告 | `python run.py --allure` |
 | 指定環境 | 加 `--env staging` 或 `TEST_ENV=prod` |
 | 失敗重跑 | 加 `--reruns 2 --reruns-delay 3` |
+| 平行執行 | `python run.py --parallel` 或 `-n 4` |
+| 匯出腳本 | `python export_test.py <測試檔> -o output.py` |
+| Makefile | `make test` / `make smoke` / `make lint` / `make export FILE=...` |
 
 ---
 
@@ -331,6 +334,39 @@ def test_with_env(env_config):
 # 失敗自動重跑 2 次，間隔 3 秒
 pytest tests/ --reruns 2 --reruns-delay 3
 ```
+
+---
+
+## Step 9：匯出拋棄式腳本
+
+測試寫好後，可以把任何一個測試檔匯出成獨立腳本，不需要整個框架就能跑：
+
+```sh
+# 匯出 demo_search 的測試
+python export_test.py scenarios/demo_search/tests/test_search.py
+
+# 指定輸出路徑 + 無頭模式
+python export_test.py scenarios/demo_search/tests/test_search.py \
+    -o ~/Desktop/run_search.py --headless
+
+# 透過 Makefile
+make export FILE=scenarios/demo_search/tests/test_search.py
+```
+
+匯出的腳本會自動：
+- 內嵌 BasePage 完整程式碼
+- 內嵌 Page Object（SearchPage 等）
+- 內嵌測試資料（JSON → Python dict）
+- 內嵌 Driver 建立邏輯
+- 保留所有測試案例和 fixture
+
+直接執行：
+```sh
+pytest exported_test_search.py -v
+python exported_test_search.py
+```
+
+適合用途：分享給同事、丟到其他機器跑、一次性驗證、快速 demo。
 
 ---
 
