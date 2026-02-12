@@ -87,6 +87,43 @@
 - 測試必須全部通過才能請 User Review
 - 如果有修改核心模組（`pages/`、`utils/`、`config/`），必須確認所有 unit test 通過
 
+### 測試案例標記（必要）
+
+**每個測試案例都必須有專屬的 `@pytest.mark` tag**，不能有沒標記的測試。
+
+可用的 tag：
+
+| Tag | 用途 |
+|-----|------|
+| `@pytest.mark.positive` | 正向測試（合法輸入、預期成功） |
+| `@pytest.mark.negative` | 反向測試（非法輸入、預期失敗） |
+| `@pytest.mark.boundary` | 邊界測試（極端值、臨界值） |
+| `@pytest.mark.smoke` | 冒煙測試（核心流程快速驗證） |
+| `@pytest.mark.regression` | 迴歸測試（防止舊 bug 復發） |
+| `@pytest.mark.visual` | 視覺回歸（截圖比對） |
+| `@pytest.mark.flaky` | 不穩定測試（需搭配 `--reruns`） |
+
+範例：
+```python
+class TestLogin:
+    @pytest.mark.positive
+    def test_valid_login(self, page):
+        ...
+
+    @pytest.mark.negative
+    def test_empty_email(self, page):
+        ...
+
+    @pytest.mark.boundary
+    def test_long_email(self, page):
+        ...
+```
+
+**規則：**
+- 一個測試可以有多個 tag（例如 `@pytest.mark.smoke` + `@pytest.mark.positive`）
+- 新增自訂 tag 需要在 `pytest.ini` 的 `markers` 中註冊
+- 寫測試時 AI 必須自動為每個測試加上對應的 tag
+
 ---
 
 ## AI 實作測試的規範
