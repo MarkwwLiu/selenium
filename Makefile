@@ -91,6 +91,20 @@ check-format:
 	$(PYTHON) -m isort pages/ utils/ config/ tests/ conftest.py run.py --profile black --check-only
 	$(PYTHON) -m black pages/ utils/ config/ tests/ conftest.py run.py --line-length=120 --check
 
+# === 匯出拋棄式腳本 ===
+
+.PHONY: export
+export:
+	@if [ -z "$(FILE)" ]; then \
+		echo "用法: make export FILE=scenarios/demo_search/tests/test_search.py"; \
+		echo "選項: OUT=output.py BROWSER=chrome HEADLESS=1"; \
+		exit 1; \
+	fi
+	$(PYTHON) export_test.py $(FILE) \
+		$(if $(OUT),-o $(OUT)) \
+		--browser=$(BROWSER) \
+		$(if $(HEADLESS),--headless)
+
 # === 情境產生 ===
 
 .PHONY: new-scenario
