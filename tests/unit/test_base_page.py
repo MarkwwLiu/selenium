@@ -5,6 +5,7 @@ BasePage 單元測試
 確保後續改動不破壞核心邏輯。
 """
 
+import os
 from unittest.mock import MagicMock, patch, PropertyMock
 import pytest
 from selenium.webdriver.common.by import By
@@ -359,3 +360,152 @@ class TestElementState:
     def test_get_element_count_zero(self, page, mock_driver):
         mock_driver.find_elements.return_value = []
         assert page.get_element_count(By.CSS_SELECTOR, '.none') == 0
+
+
+# === 等待策略 ===
+
+class TestWaitStrategies:
+    @pytest.mark.positive
+    @patch('pages.base_page.WebDriverWait')
+    def test_wait_for_element(self, MockWait, page):
+        mock_el = MagicMock()
+        MockWait.return_value.until.return_value = mock_el
+        result = page.wait_for_element(By.ID, 'el')
+        assert result is mock_el
+
+    @pytest.mark.positive
+    @patch('pages.base_page.WebDriverWait')
+    def test_wait_for_visible(self, MockWait, page):
+        mock_el = MagicMock()
+        MockWait.return_value.until.return_value = mock_el
+        result = page.wait_for_visible(By.ID, 'el')
+        assert result is mock_el
+
+    @pytest.mark.positive
+    @patch('pages.base_page.WebDriverWait')
+    def test_wait_for_clickable(self, MockWait, page):
+        mock_el = MagicMock()
+        MockWait.return_value.until.return_value = mock_el
+        result = page.wait_for_clickable(By.ID, 'btn')
+        assert result is mock_el
+
+    @pytest.mark.positive
+    @patch('pages.base_page.WebDriverWait')
+    def test_wait_for_invisible(self, MockWait, page):
+        MockWait.return_value.until.return_value = True
+        result = page.wait_for_invisible(By.ID, 'spinner')
+        assert result is True
+
+    @pytest.mark.positive
+    @patch('pages.base_page.WebDriverWait')
+    def test_wait_for_text_present(self, MockWait, page):
+        MockWait.return_value.until.return_value = True
+        result = page.wait_for_text_present(By.ID, 'msg', 'hello')
+        assert result is True
+
+    @pytest.mark.positive
+    @patch('pages.base_page.WebDriverWait')
+    def test_wait_for_url_contains(self, MockWait, page):
+        MockWait.return_value.until.return_value = True
+        result = page.wait_for_url_contains('/dashboard')
+        assert result is True
+
+
+# === Alert ===
+
+class TestAlert:
+    @pytest.mark.positive
+    @patch('pages.base_page.WebDriverWait')
+    def test_accept_alert(self, MockWait, page, mock_driver):
+        MockWait.return_value.until.return_value = True
+        page.accept_alert()
+        mock_driver.switch_to.alert.accept.assert_called_once()
+
+    @pytest.mark.positive
+    @patch('pages.base_page.WebDriverWait')
+    def test_dismiss_alert(self, MockWait, page, mock_driver):
+        MockWait.return_value.until.return_value = True
+        page.dismiss_alert()
+        mock_driver.switch_to.alert.dismiss.assert_called_once()
+
+    @pytest.mark.positive
+    @patch('pages.base_page.WebDriverWait')
+    def test_get_alert_text(self, MockWait, page, mock_driver):
+        MockWait.return_value.until.return_value = True
+        mock_driver.switch_to.alert.text = '確認刪除？'
+        result = page.get_alert_text()
+        assert result == '確認刪除？'
+
+
+# === 檔案上傳 ===
+
+class TestUpload:
+    @pytest.mark.positive
+    def test_upload_file_absolute_path(self, page):
+        mock_el = MagicMock()
+        with patch.object(page, 'wait_for_element', return_value=mock_el):
+            page.upload_file(By.ID, 'file', '/tmp/test.pdf')
+        mock_el.send_keys.assert_called_once_with('/tmp/test.pdf')
+
+    @pytest.mark.positive
+    def test_upload_file_relative_path(self, page):
+        mock_el = MagicMock()
+        with patch.object(page, 'wait_for_element', return_value=mock_el):
+            page.upload_file(By.ID, 'file', 'test.pdf')
+        # 相對路徑會被轉成絕對路徑
+        call_args = mock_el.send_keys.call_args[0][0]
+        assert os.path.isabs(call_args)
+
+    @pytest.mark.positive
+    def test_upload_files(self, page):
+        mock_el = MagicMock()
+        with patch.object(page, 'wait_for_element', return_value=mock_el):
+            page.upload_files(By.ID, 'file', ['/tmp/a.pdf', '/tmp/b.jpg'])
+        mock_el.send_keys.assert_called_once_with('/tmp/a.pdf\n/tmp/b.jpg')
+
+    @pytest.mark.positive
+    def test_upload_files_relative_paths(self, page):
+        mock_el = MagicMock()
+        with patch.object(page, 'wait_for_element', return_value=mock_el):
+            page.upload_files(By.ID, 'file', ['a.pdf', 'b.jpg'])
+        call_args = mock_el.send_keys.call_args[0][0]
+        for part in call_args.split('\n'):
+            assert os.path.isabs(part)
+
+
+# === 拖曳放置 ===
+
+class TestDragAndDrop:
+    @pytest.mark.positive
+    @patch('pages.base_page.ActionChains')
+    def test_drag_and_drop(self, MockAC, page):
+        src = MagicMock()
+        tgt = MagicMock()
+        with patch.object(page, 'wait_for_visible', side_effect=[src, tgt]):
+            page.drag_and_drop(By.ID, 'src', By.ID, 'tgt')
+        MockAC.return_value.drag_and_drop.assert_called_once_with(src, tgt)
+
+    @pytest.mark.positive
+    @patch('pages.base_page.ActionChains')
+    def test_drag_and_drop_by_offset(self, MockAC, page):
+        mock_el = MagicMock()
+        with patch.object(page, 'wait_for_visible', return_value=mock_el):
+            page.drag_and_drop_by_offset(By.ID, 'slider', 100, 0)
+        MockAC.return_value.drag_and_drop_by_offset.assert_called_once_with(mock_el, 100, 0)
+
+
+# === 鍵盤操作 ===
+
+class TestKeyboard:
+    @pytest.mark.positive
+    @patch('pages.base_page.ActionChains')
+    def test_press_keys(self, MockAC, page):
+        page.press_keys(Keys.ESCAPE)
+        MockAC.return_value.send_keys.assert_called_once_with(Keys.ESCAPE)
+
+    @pytest.mark.positive
+    def test_send_keys_to_element(self, page):
+        mock_el = MagicMock()
+        with patch.object(page, 'wait_for_visible', return_value=mock_el):
+            page.send_keys_to_element(By.ID, 'editor', Keys.CONTROL, 'c')
+        mock_el.send_keys.assert_called_once_with(Keys.CONTROL, 'c')

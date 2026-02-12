@@ -36,15 +36,9 @@ diffs/*.png
 # Cookie 狀態
 cookies/*.json
 
-# 情境模組產出（截圖、日誌、快照、分析報告）
-scenarios/*/results/*.png
-scenarios/*/results/*.log
-scenarios/*/results/*.json
-scenarios/*/results/snapshots/
-scenarios/*/results/baselines/
-scenarios/*/results/diffs/
-# 情境自動產生的測試資料
-scenarios/*/test_data/
+# 測試覆蓋率
+.coverage
+htmlcov/
 
 # 環境設定
 .env
