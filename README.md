@@ -28,13 +28,18 @@ selenium/
 │   │   ├── console_capture.py        # 瀏覽器 Console Log 擷取
 │   │   ├── soft_assert.py            # 軟斷言（不中斷收集所有失敗）
 │   │   ├── table_parser.py           # HTML 表格解析為結構化資料
-│   │   └── visual_regression.py      # 截圖比對（視覺回歸測試）
+│   │   ├── visual_regression.py      # 截圖比對（視覺回歸測試）
+│   │   ├── notifier.py              # 測試結果通知（Slack / Email）
+│   │   ├── network_interceptor.py   # 網路攔截 / Mock / 限速（CDP）
+│   │   └── data_factory.py          # 測試資料工廠（Faker 自動產生）
 │   ├── config/
 │   │   ├── settings.py               # 全域設定（瀏覽器/等待/截圖/日誌）
 │   │   └── environments.py           # 多環境切換（dev/staging/prod）
 │   ├── conftest.py                   # 根層級 pytest fixtures
 │   ├── pytest.ini                    # pytest 設定 + markers
-│   └── generate_scenario.py          # 情境模組產生器
+│   ├── generate_scenario.py          # 情境模組產生器
+│   ├── Makefile                      # 統一指令入口（make test / lint / format）
+│   └── .pre-commit-config.yaml       # pre-commit hooks 設定
 │
 ├── tests/                             # 根層級測試（核心功能驗證用）
 │
@@ -198,6 +203,9 @@ pytest scenarios/login_test/tests/ --html=scenarios/login_test/results/report.ht
 | **soft_assert.py** | 軟斷言，不中斷收集所有失敗 | `soft.equal(a, b)` → `soft.assert_all()` |
 | **table_parser.py** | HTML 表格解析為 list[dict] | `parser.parse(By.ID, 'table')` / `parser.find_rows()` |
 | **visual_regression.py** | 截圖比對，偵測 UI 視覺變化 | `vr.check('name', threshold=0.01)` |
+| **notifier.py** | 測試完成後 Slack / Email 通知 | `SlackNotifier(url).send_report(passed=10, failed=2)` |
+| **network_interceptor.py** | 網路攔截、Mock 回應、限速 | `interceptor.throttle()` / `interceptor.mock_response()` |
+| **data_factory.py** | Faker 自動產生測試資料 | `factory.user()` / `factory.form_data(['name', 'email'])` |
 
 ### 多環境設定（config/environments.py）
 
@@ -262,6 +270,8 @@ pytest tests/ -m flaky --reruns 2
 | `soft_assert` | function | 軟斷言（不中斷收集所有失敗） |
 | `table_parser` | session | HTML 表格解析 |
 | `visual_regression` | session | 截圖比對（視覺回歸） |
+| `network_interceptor` | session | 網路攔截 / Mock / 限速（Chrome/Edge） |
+| `data_factory` | function | Faker 測試資料工廠 |
 | `env_config` | session | 多環境設定（根層級 conftest） |
 | `test_lifecycle` | autouse | 自動紀錄 + 失敗截圖 |
 
@@ -350,3 +360,134 @@ BASELINES_DIR = '...'         # 視覺回歸 baseline 存放路徑
 DIFFS_DIR = '...'             # 視覺回歸差異圖存放路徑
 COOKIES_DIR = '...'           # Cookie 狀態存放路徑
 ```
+
+---
+
+## Makefile 統一指令
+
+```sh
+make install          # 安裝依賴
+make install-dev      # 安裝開發工具（pre-commit, flake8, black, isort）
+
+make test             # 執行所有測試
+make smoke            # 只跑冒煙測試
+make unit             # 只跑單元測試
+make scenario S=demo_search  # 執行指定情境
+make parallel         # pytest-xdist 平行執行
+make rerun            # 失敗自動重跑
+
+make report-html      # 產生 HTML 報告
+make report-allure    # 產生 Allure 報告
+
+make lint             # flake8 檢查
+make format           # black + isort 格式化
+make clean            # 清理產出檔案
+
+# 變數覆寫
+make test BROWSER=firefox ENV=staging
+```
+
+---
+
+## 平行執行（pytest-xdist）
+
+```sh
+# 自動偵測 CPU 數量
+pytest tests/ -n auto --headless-mode
+
+# 指定 4 個 worker
+pytest tests/ -n 4 --headless-mode
+
+# 透過 run.py
+python run.py --parallel
+python run.py -n 4
+```
+
+---
+
+## 測試結果通知
+
+### Slack
+
+```python
+from utils.notifier import SlackNotifier
+
+notifier = SlackNotifier(webhook_url='https://hooks.slack.com/services/...')
+notifier.send_report(passed=10, failed=2, total=12, title='Nightly Run')
+```
+
+環境變數方式：設定 `SLACK_WEBHOOK` 即可。
+
+### Email
+
+```python
+from utils.notifier import EmailNotifier
+
+notifier = EmailNotifier(
+    smtp_host='smtp.gmail.com', smtp_port=587,
+    username='test@gmail.com', password='app-password',
+    recipients=['team@company.com'],
+)
+notifier.send_report(passed=10, failed=2, total=12)
+```
+
+環境變數方式：設定 `SMTP_HOST`、`SMTP_USER`、`SMTP_PASSWORD`、`SMTP_RECIPIENTS`。
+
+---
+
+## 網路攔截（CDP）
+
+僅支援 Chrome / Edge。
+
+```python
+def test_api_mock(network_interceptor):
+    # 擷取請求
+    network_interceptor.start_capture()
+    page.open('https://example.com')
+    requests = network_interceptor.get_requests_by_url('*/api/*')
+    network_interceptor.stop_capture()
+
+    # Mock API 回應
+    network_interceptor.mock_response('*/api/users*', body='{"users": []}', status=200)
+
+    # 模擬慢速網路
+    network_interceptor.simulate_3g()
+
+    # 模擬離線
+    network_interceptor.set_offline(True)
+
+    # 阻擋第三方追蹤
+    network_interceptor.block_urls(['*.google-analytics.com*'])
+```
+
+---
+
+## 測試資料工廠（Faker）
+
+```python
+def test_register(data_factory):
+    user = data_factory.user()          # {'name': '陳小明', 'email': '...', 'phone': '...'}
+    pw = data_factory.password(length=12, special=True)
+    form = data_factory.form_data(['name', 'email', 'phone', 'address'])
+
+    # 邊界值
+    emails = data_factory.boundary_emails()     # 合法/非法 email 列表
+    strings = data_factory.boundary_strings()   # 空/XSS/SQL injection/超長 等
+
+    # 批量 (搭配 parametrize)
+    users = data_factory.users(count=5)
+```
+
+---
+
+## Pre-commit Hooks
+
+```sh
+# 安裝
+make install-dev
+
+# 手動執行
+pre-commit run --all-files
+```
+
+包含：trailing-whitespace、end-of-file-fixer、isort、black、flake8。

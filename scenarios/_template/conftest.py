@@ -38,6 +38,8 @@ from utils.console_capture import ConsoleCapture
 from utils.soft_assert import SoftAssert
 from utils.table_parser import TableParser
 from utils.visual_regression import VisualRegression
+from utils.network_interceptor import NetworkInterceptor
+from utils.data_factory import DataFactory
 
 # === 情境參數（產生器會覆寫這裡）===
 SCENARIO_URL = ''
@@ -132,6 +134,23 @@ def visual_regression(driver):
     baseline_dir = os.path.join(RESULTS_DIR, 'baselines')
     diff_dir = os.path.join(RESULTS_DIR, 'diffs')
     return VisualRegression(driver, baseline_dir=baseline_dir, diff_dir=diff_dir)
+
+
+@pytest.fixture(scope='session')
+def network_interceptor(driver):
+    """Network 攔截工具（僅 Chrome/Edge）。"""
+    interceptor = NetworkInterceptor(driver)
+    yield interceptor
+    try:
+        interceptor.reset_network()
+    except Exception:
+        pass
+
+
+@pytest.fixture(scope='function')
+def data_factory():
+    """測試資料工廠。"""
+    return DataFactory(locale='zh_TW')
 
 
 @pytest.hookimpl(tryfirst=True, hookwrapper=True)

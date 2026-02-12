@@ -11,6 +11,8 @@
     python run.py --allure                              # 產生 Allure 報告
     python run.py --env staging                         # 指定測試環境
     python run.py --reruns 2                            # 失敗重跑 2 次
+    python run.py --parallel                            # 平行執行（自動偵測 CPU 數）
+    python run.py -n 4                                  # 指定 4 個 worker 平行執行
     python run.py -m smoke                              # 只跑 smoke 標籤的測試
     python run.py -k "keyword"                          # 只跑名稱含 keyword 的測試
     python run.py --browser edge --headless --html      # 組合使用
@@ -49,6 +51,12 @@ def main():
             i += 2
         elif arg == '--reruns-delay' and i + 1 < len(sys.argv):
             args.extend(['--reruns-delay', sys.argv[i + 1]])
+            i += 2
+        elif arg == '--parallel':
+            args.extend(['-n', 'auto'])
+            i += 1
+        elif arg == '-n' and i + 1 < len(sys.argv):
+            args.extend(['-n', sys.argv[i + 1]])
             i += 2
         else:
             passthrough.append(arg)

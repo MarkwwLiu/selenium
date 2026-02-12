@@ -72,6 +72,21 @@ def driver(request, logger):
     logger.info('===== 測試 Session 結束 =====\n')
 
 
+@pytest.fixture(scope='session')
+def waiter(driver):
+    """
+    Session 層級的進階等待工具 fixture。
+
+    Usage:
+        def test_example(waiter):
+            waiter.wait_for_page_load()
+            waiter.wait_for_ajax()
+            waiter.wait_for_stable(By.ID, 'counter')
+    """
+    from utils.waiter import Waiter
+    return Waiter(driver)
+
+
 @pytest.fixture(scope='function')
 def soft_assert():
     """
@@ -140,6 +155,41 @@ def visual_regression(driver):
     from config.settings import BASELINES_DIR, DIFFS_DIR
     from utils.visual_regression import VisualRegression
     return VisualRegression(driver, baseline_dir=BASELINES_DIR, diff_dir=DIFFS_DIR)
+
+
+@pytest.fixture(scope='session')
+def network_interceptor(driver):
+    """
+    Network 攔截 fixture（僅限 Chrome/Edge）。
+
+    Usage:
+        def test_example(network_interceptor):
+            network_interceptor.start_capture()
+            # ... 操作頁面 ...
+            assert network_interceptor.has_request('*/api/data*')
+            network_interceptor.stop_capture()
+    """
+    from utils.network_interceptor import NetworkInterceptor
+    interceptor = NetworkInterceptor(driver)
+    yield interceptor
+    try:
+        interceptor.reset_network()
+    except Exception:
+        pass
+
+
+@pytest.fixture(scope='function')
+def data_factory():
+    """
+    測試資料工廠 fixture。
+
+    Usage:
+        def test_register(data_factory):
+            user = data_factory.user()
+            form = data_factory.form_data(['name', 'email', 'phone'])
+    """
+    from utils.data_factory import DataFactory
+    return DataFactory(locale='zh_TW')
 
 
 @pytest.hookimpl(tryfirst=True, hookwrapper=True)
